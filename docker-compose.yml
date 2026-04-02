@@ -35,7 +35,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     ports:
-      - "9090:9090"
+      - "9099:9090"
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
@@ -47,6 +47,9 @@ services:
     image: grafana/grafana:11.1.0
     ports:
       - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     depends_on:
       - prometheus
     profiles:
