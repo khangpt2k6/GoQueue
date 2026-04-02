@@ -3,18 +3,22 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
+	"github.com/2006t/goqueue/internal/grpcapi"
 	"github.com/2006t/goqueue/internal/metrics"
 	"github.com/2006t/goqueue/internal/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	tcpAddr := flag.String("tcp-addr", ":9090", "TCP broker listen address")
+	grpcAddr := flag.String("grpc-addr", ":9095", "gRPC listen address")
 	metricsAddr := flag.String("metrics-addr", ":2112", "Prometheus metrics listen address")
 	walPath := flag.String("wal-path", "data/goqueue.wal", "WAL file path")
 	flag.Parse()
@@ -39,6 +43,8 @@ func main() {
 
 	reg := prometheus.NewRegistry()
 	m := metrics.New(reg)
+	groups := consumer.NewManager()
+
 	go func() {
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", metrics.Handler(reg))
@@ -48,7 +54,20 @@ func main() {
 		}
 	}()
 
-	srv := broker.NewTCPServer(*tcpAddr, b, logFile, consumer.NewManager(), m)
+	go func() {
+		lis, err := net.Listen("tcp", *grpcAddr)
+		if err != nil {
+			log.Fatalf("grpc listen: %v", err)
+		}
+		grpcSrv := grpc.NewServer(grpc.ForceServerCodec(grpcapi.Codec()))
+		grpcapi.Register(grpcSrv, grpcapi.NewServer(b, groups, m))
+		log.Printf("grpc broker listening on %s", *grpcAddr)
+		if err := grpcSrv.Serve(lis); err != nil {
+			log.Fatalf("grpc server stopped: %v", err)
+		}
+	}()
+
+	srv := broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("tcp server stopped: %v", err)
 	}
