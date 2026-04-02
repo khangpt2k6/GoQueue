@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: goqueue
+    static_configs:
+      - targets:
+          - broker-1:2112
+          - broker-2:2112
+          - broker-3:2112
