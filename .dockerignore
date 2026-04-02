@@ -1,0 +1,6 @@
+.git
+.zencoder
+.zenflow
+*.exe
+data/
+bench/
