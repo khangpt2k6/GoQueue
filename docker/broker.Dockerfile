@@ -14,5 +14,5 @@ WORKDIR /home/goqueue
 RUN mkdir -p /data && chown goqueue:goqueue /data
 COPY --from=builder /bin/broker /usr/local/bin/broker
 USER goqueue
-EXPOSE 9090 2112
+EXPOSE 9090 9095 2112
 ENTRYPOINT ["broker"]

@@ -6,6 +6,7 @@ services:
     command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
     ports:
       - "9091:9090"
+      - "9191:9095"
       - "2113:2112"
     volumes:
       - broker1_data:/data
@@ -17,6 +18,7 @@ services:
     command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
     ports:
       - "9092:9090"
+      - "9192:9095"
       - "2114:2112"
     volumes:
       - broker2_data:/data
@@ -28,6 +30,7 @@ services:
     command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
     ports:
       - "9093:9090"
+      - "9193:9095"
       - "2115:2112"
     volumes:
       - broker3_data:/data
