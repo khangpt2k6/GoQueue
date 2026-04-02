@@ -2,7 +2,6 @@ package grpcapi
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"time"
 
@@ -10,67 +9,26 @@ import (
 	"github.com/2006t/goqueue/internal/consumer"
 	"github.com/2006t/goqueue/internal/metrics"
 	"github.com/2006t/goqueue/internal/wal"
+	goqueuev1 "github.com/2006t/goqueue/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/status"
 )
 
-const (
-	ServiceName   = "goqueue.v1.BrokerService"
-	PublishMethod = "/" + ServiceName + "/Publish"
-	ConsumeMethod = "/" + ServiceName + "/Consume"
-)
-
-type jsonCodec struct{}
-
-func (jsonCodec) Marshal(v any) ([]byte, error)   { return json.Marshal(v) }
-func (jsonCodec) Unmarshal(data []byte, v any) error { return json.Unmarshal(data, v) }
-func (jsonCodec) Name() string                    { return "json" }
-
-func Codec() encoding.Codec { return jsonCodec{} }
-
-func init() {
-	encoding.RegisterCodec(jsonCodec{})
-}
-
-type PublishRequest struct {
-	Topic   string `json:"topic"`
-	Payload []byte `json:"payload"`
-}
-
-type PublishResponse struct {
-	Offset int64 `json:"offset"`
-}
-
-type ConsumeRequest struct {
-	Topic string `json:"topic"`
-	Group string `json:"group"`
-}
-
-type ConsumeMessage struct {
-	Offset            int64  `json:"offset"`
-	Payload           []byte `json:"payload"`
-	TimestampUnixNano int64  `json:"timestamp_unix_nano"`
-}
-
 type Server struct {
+	goqueuev1.UnimplementedBrokerServiceServer
+
 	broker  *broker.Broker
 	groups  *consumer.Manager
 	metrics *metrics.Metrics
 	wal     *wal.Log
 }
 
-type brokerServiceServer interface {
-	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
-	Consume(*ConsumeRequest, grpc.ServerStream) error
-}
-
 func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal.Log) *Server {
 	return &Server{broker: b, groups: g, metrics: m, wal: l}
 }
 
-func (s *Server) Publish(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
+func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
 	if req.Topic == "" {
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
 	}
@@ -85,10 +43,10 @@ func (s *Server) Publish(ctx context.Context, req *PublishRequest) (*PublishResp
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
 	}
-	return &PublishResponse{Offset: offset}, nil
+	return &goqueuev1.PublishResponse{Offset: offset}, nil
 }
 
-func (s *Server) Consume(req *ConsumeRequest, stream grpc.ServerStream) error {
+func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStreamingServer[goqueuev1.ConsumeMessage]) error {
 	if req.Topic == "" {
 		return status.Error(codes.InvalidArgument, "topic is required")
 	}
@@ -113,12 +71,12 @@ func (s *Server) Consume(req *ConsumeRequest, stream grpc.ServerStream) error {
 			return err
 		}
 		for _, msg := range msgs {
-			out := &ConsumeMessage{
+			out := &goqueuev1.ConsumeMessage{
 				Offset:            msg.Offset,
 				Payload:           msg.Payload,
 				TimestampUnixNano: msg.Timestamp.UnixNano(),
 			}
-			if err := stream.SendMsg(out); err != nil {
+			if err := stream.Send(out); err != nil {
 				return err
 			}
 		}
@@ -140,44 +98,5 @@ func (s *Server) Consume(req *ConsumeRequest, stream grpc.ServerStream) error {
 }
 
 func Register(grpcServer *grpc.Server, srv *Server) {
-	grpcServer.RegisterService(&grpc.ServiceDesc{
-		ServiceName: ServiceName,
-		HandlerType: (*brokerServiceServer)(nil),
-		Methods: []grpc.MethodDesc{
-			{
-				MethodName: "Publish",
-				Handler: func(service any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
-					in := new(PublishRequest)
-					if err := dec(in); err != nil {
-						return nil, err
-					}
-					if interceptor == nil {
-						return service.(*Server).Publish(ctx, in)
-					}
-					info := &grpc.UnaryServerInfo{
-						Server:     service,
-						FullMethod: PublishMethod,
-					}
-					handler := func(ctx context.Context, req any) (any, error) {
-						return service.(*Server).Publish(ctx, req.(*PublishRequest))
-					}
-					return interceptor(ctx, in, info, handler)
-				},
-			},
-		},
-		Streams: []grpc.StreamDesc{
-			{
-				StreamName:    "Consume",
-				ServerStreams: true,
-				Handler: func(service any, stream grpc.ServerStream) error {
-					in := new(ConsumeRequest)
-					if err := stream.RecvMsg(in); err != nil {
-						return err
-					}
-					return service.(*Server).Consume(in, stream)
-				},
-			},
-		},
-		Metadata: "proto/goqueue.proto",
-	}, srv)
+	goqueuev1.RegisterBrokerServiceServer(grpcServer, srv)
 }

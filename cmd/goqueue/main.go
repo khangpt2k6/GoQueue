@@ -13,9 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/2006t/goqueue/internal/grpcapi"
 	"github.com/2006t/goqueue/internal/protocol"
+	goqueuev1 "github.com/2006t/goqueue/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -92,8 +93,7 @@ func publishTCP(addr, topic, msg string) {
 func publishGRPC(addr, topic, msg string) {
 	conn, err := grpc.NewClient(
 		addr,
-		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(grpcapi.Codec())),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		log.Fatalf("dial grpc broker: %v", err)
@@ -103,9 +103,12 @@ func publishGRPC(addr, topic, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	req := &grpcapi.PublishRequest{Topic: topic, Payload: []byte(msg)}
-	resp := new(grpcapi.PublishResponse)
-	if err := conn.Invoke(ctx, grpcapi.PublishMethod, req, resp); err != nil {
+	client := goqueuev1.NewBrokerServiceClient(conn)
+	resp, err := client.Publish(ctx, &goqueuev1.PublishRequest{
+		Topic:   topic,
+		Payload: []byte(msg),
+	})
+	if err != nil {
 		log.Fatalf("grpc publish failed: %v", err)
 	}
 	fmt.Printf("published topic=%s offset=%d\n", topic, resp.Offset)
@@ -174,8 +177,7 @@ func consumeTCP(addr, topic, group string) {
 func consumeGRPC(addr, topic, group string) {
 	conn, err := grpc.NewClient(
 		addr,
-		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(grpcapi.Codec())),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		log.Fatalf("dial grpc broker: %v", err)
@@ -192,22 +194,17 @@ func consumeGRPC(addr, topic, group string) {
 		cancel()
 	}()
 
-	desc := &grpc.StreamDesc{ServerStreams: true}
-	stream, err := conn.NewStream(ctx, desc, grpcapi.ConsumeMethod)
+	client := goqueuev1.NewBrokerServiceClient(conn)
+	stream, err := client.Consume(ctx, &goqueuev1.ConsumeRequest{
+		Topic: topic,
+		Group: group,
+	})
 	if err != nil {
 		log.Fatalf("grpc consume stream failed: %v", err)
 	}
 
-	if err := stream.SendMsg(&grpcapi.ConsumeRequest{Topic: topic, Group: group}); err != nil {
-		log.Fatalf("grpc send consume request failed: %v", err)
-	}
-	if err := stream.CloseSend(); err != nil {
-		log.Fatalf("grpc close send failed: %v", err)
-	}
-
 	for {
-		msg := new(grpcapi.ConsumeMessage)
-		err := stream.RecvMsg(msg)
+		msg, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF || ctx.Err() != nil {
 				return
