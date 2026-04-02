@@ -31,8 +31,17 @@ func (b *Broker) Publish(topicName string, payload []byte) int64 {
 
 // Subscribe returns a Subscription starting at the latest offset.
 func (b *Broker) Subscribe(topicName, group string) *Subscription {
+	return b.SubscribeAt(topicName, group, -1)
+}
+
+// SubscribeAt returns a Subscription starting at a specific offset.
+// If startOffset < 0, it starts from the current tail (latest).
+func (b *Broker) SubscribeAt(topicName, group string, startOffset int64) *Subscription {
 	t := b.getOrCreate(topicName)
-	s := newSubscription(t, group, t.Tail())
+	if startOffset < 0 {
+		startOffset = t.Tail()
+	}
+	s := newSubscription(t, group, startOffset)
 	t.addSub(s)
 	return s
 }
@@ -66,6 +75,7 @@ func (b *Broker) Topics() []string {
 
 func (b *Broker) TotalPublished() int64 { return b.totalPublished.Load() }
 func (b *Broker) TotalConsumed() int64  { return b.totalConsumed.Load() }
+func (b *Broker) AddConsumed(n int64)   { b.totalConsumed.Add(n) }
 
 func (b *Broker) getOrCreate(name string) *Topic {
 	b.mu.RLock()
