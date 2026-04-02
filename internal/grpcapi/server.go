@@ -9,6 +9,7 @@ import (
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
 	"github.com/2006t/goqueue/internal/metrics"
+	"github.com/2006t/goqueue/internal/wal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/encoding"
@@ -57,6 +58,7 @@ type Server struct {
 	broker  *broker.Broker
 	groups  *consumer.Manager
 	metrics *metrics.Metrics
+	wal     *wal.Log
 }
 
 type brokerServiceServer interface {
@@ -64,8 +66,8 @@ type brokerServiceServer interface {
 	Consume(*ConsumeRequest, grpc.ServerStream) error
 }
 
-func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics) *Server {
-	return &Server{broker: b, groups: g, metrics: m}
+func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal.Log) *Server {
+	return &Server{broker: b, groups: g, metrics: m, wal: l}
 }
 
 func (s *Server) Publish(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
@@ -73,6 +75,11 @@ func (s *Server) Publish(ctx context.Context, req *PublishRequest) (*PublishResp
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
 	}
 	start := time.Now()
+	if s.wal != nil {
+		if err := s.wal.Append(req.Topic, req.Payload); err != nil {
+			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
+		}
+	}
 	offset := s.broker.Publish(req.Topic, req.Payload)
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
@@ -117,6 +124,7 @@ func (s *Server) Consume(req *ConsumeRequest, stream grpc.ServerStream) error {
 		}
 		latestOffset := msgs[len(msgs)-1].Offset + 1
 		s.groups.Commit(req.Topic, group, latestOffset)
+		s.broker.AddConsumed(int64(len(msgs)))
 		if s.metrics != nil {
 			s.metrics.ConsumedTotal.Add(float64(len(msgs)))
 			head, tail, err := s.broker.TopicInfo(req.Topic)

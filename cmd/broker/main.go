@@ -60,7 +60,7 @@ func main() {
 			log.Fatalf("grpc listen: %v", err)
 		}
 		grpcSrv := grpc.NewServer(grpc.ForceServerCodec(grpcapi.Codec()))
-		grpcapi.Register(grpcSrv, grpcapi.NewServer(b, groups, m))
+		grpcapi.Register(grpcSrv, grpcapi.NewServer(b, groups, m, logFile))
 		log.Printf("grpc broker listening on %s", *grpcAddr)
 		if err := grpcSrv.Serve(lis); err != nil {
 			log.Fatalf("grpc server stopped: %v", err)
