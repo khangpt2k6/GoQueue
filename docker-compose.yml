@@ -1,0 +1,58 @@
+services:
+  broker-1:
+    build:
+      context: .
+      dockerfile: docker/broker.Dockerfile
+    command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
+    ports:
+      - "9091:9090"
+      - "2113:2112"
+    volumes:
+      - broker1_data:/data
+
+  broker-2:
+    build:
+      context: .
+      dockerfile: docker/broker.Dockerfile
+    command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
+    ports:
+      - "9092:9090"
+      - "2114:2112"
+    volumes:
+      - broker2_data:/data
+
+  broker-3:
+    build:
+      context: .
+      dockerfile: docker/broker.Dockerfile
+    command: ["--tcp-addr=:9090", "--metrics-addr=:2112", "--wal-path=/data/goqueue.wal"]
+    ports:
+      - "9093:9090"
+      - "2115:2112"
+    volumes:
+      - broker3_data:/data
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - broker-1
+      - broker-2
+      - broker-3
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    profiles:
+      - observability
+
+volumes:
+  broker1_data:
+  broker2_data:
+  broker3_data:
