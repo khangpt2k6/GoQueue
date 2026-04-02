@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/2006t/goqueue/internal/consumer"
@@ -22,6 +24,9 @@ type TCPServer struct {
 	groups   *consumer.Manager
 	metrics  *metrics.Metrics
 	listener net.Listener
+
+	activeConns sync.WaitGroup
+	connCount   atomic.Int64
 }
 
 func NewTCPServer(addr string, b *Broker, l *wal.Log, g *consumer.Manager, m *metrics.Metrics) *TCPServer {
@@ -47,16 +52,25 @@ func (s *TCPServer) ListenAndServe() error {
 		if err != nil {
 			return err
 		}
-		go s.handleConn(conn)
+		s.activeConns.Add(1)
+		s.connCount.Add(1)
+		go func() {
+			defer s.activeConns.Done()
+			defer s.connCount.Add(-1)
+			s.handleConn(conn)
+		}()
 	}
 }
 
-func (s *TCPServer) Close() error {
+// Shutdown stops accepting new connections and waits for existing ones to finish.
+func (s *TCPServer) Shutdown() {
 	if s.listener != nil {
-		return s.listener.Close()
+		_ = s.listener.Close()
 	}
-	return nil
+	s.activeConns.Wait()
 }
+
+func (s *TCPServer) ConnCount() int64 { return s.connCount.Load() }
 
 func (s *TCPServer) handleConn(conn net.Conn) {
 	defer conn.Close()
