@@ -253,9 +253,7 @@ func startTestServer(tb testing.TB) (*broker.TCPServer, string) {
 	}
 	tb.Cleanup(func() { w.Close() })
 
-	bk := broker.New()
-	srv := broker.NewTCPServer("127.0.0.1:0", bk, w, consumer.NewManager(), nil)
-
+	// grab a free port, then release it so the server can bind
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		tb.Fatal(err)
@@ -263,12 +261,13 @@ func startTestServer(tb testing.TB) (*broker.TCPServer, string) {
 	addr := ln.Addr().String()
 	ln.Close()
 
-	srv2 := broker.NewTCPServer(addr, bk, w, consumer.NewManager(), nil)
+	bk := broker.New()
+	srv := broker.NewTCPServer(addr, bk, w, consumer.NewManager(), nil)
 	go func() {
-		_ = srv2.ListenAndServe()
+		_ = srv.ListenAndServe()
 	}()
 	time.Sleep(20 * time.Millisecond)
-	return srv2, addr
+	return srv, addr
 }
 
 // --- Throughput report: publish N messages, measure wall clock ---
