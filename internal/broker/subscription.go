@@ -9,16 +9,18 @@ import (
 type Subscription struct {
 	topic    *Topic
 	group    string
+	partition int
 	offset   atomic.Int64
 	notify   chan struct{}
 	cancelFn context.CancelFunc
 }
 
-func newSubscription(t *Topic, group string, startOffset int64) *Subscription {
+func newSubscription(t *Topic, group string, partition int, startOffset int64) *Subscription {
 	s := &Subscription{
-		topic:  t,
-		group:  group,
-		notify: make(chan struct{}, 1),
+		topic:     t,
+		group:     group,
+		partition: partition,
+		notify:    make(chan struct{}, 1),
 	}
 	s.offset.Store(startOffset)
 	return s
@@ -47,3 +49,4 @@ func (s *Subscription) Commit(offset int64) {
 }
 
 func (s *Subscription) Offset() int64 { return s.offset.Load() }
+func (s *Subscription) Partition() int { return s.partition }
