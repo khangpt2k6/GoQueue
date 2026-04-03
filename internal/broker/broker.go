@@ -46,6 +46,16 @@ func (b *Broker) PublishWithKey(topicName, key string, payload []byte) (partitio
 	return partition, offset, nil
 }
 
+func (b *Broker) PublishToPartition(topicName string, partition int, payload []byte) (int64, error) {
+	set := b.getOrCreate(topicName)
+	if partition < 0 || partition >= len(set.partitions) {
+		return 0, fmt.Errorf("invalid partition %d", partition)
+	}
+	offset := set.partitions[partition].Publish(payload)
+	b.totalPublished.Add(1)
+	return offset, nil
+}
+
 func (b *Broker) EnsureTopic(topicName string, partitions int) {
 	if partitions <= 0 {
 		partitions = defaultTopicPartitions

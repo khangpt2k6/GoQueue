@@ -38,12 +38,28 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
 		}
 	}
-	offset := s.broker.Publish(req.Topic, req.Payload)
+	var (
+		partition int
+		offset    int64
+		err       error
+	)
+	if req.Partition >= 0 {
+		partition = int(req.Partition)
+		offset, err = s.broker.PublishToPartition(req.Topic, partition, req.Payload)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid partition: %v", err)
+		}
+	} else {
+		partition, offset, err = s.broker.PublishWithKey(req.Topic, req.Key, req.Payload)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
+		}
+	}
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
 	}
-	return &goqueuev1.PublishResponse{Offset: offset}, nil
+	return &goqueuev1.PublishResponse{Offset: offset, Partition: int32(partition)}, nil
 }
 
 func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStreamingServer[goqueuev1.ConsumeMessage]) error {
@@ -55,11 +71,17 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 		group = "default"
 	}
 
-	startOffset := int64(-1)
-	if committed, ok := s.groups.Get(req.Topic, group); ok {
-		startOffset = committed
+	partition := int(req.Partition)
+	var sub *broker.Subscription
+	if partition < 0 {
+		sub = s.broker.SubscribeAt(req.Topic, group, -1)
+	} else {
+		startOffset := int64(-1)
+		if committed, ok := s.groups.GetPartition(req.Topic, group, partition); ok {
+			startOffset = committed
+		}
+		sub = s.broker.SubscribePartitionAt(req.Topic, group, partition, startOffset)
 	}
-	sub := s.broker.SubscribeAt(req.Topic, group, startOffset)
 	defer s.broker.Unsubscribe(sub)
 
 	for {
@@ -75,17 +97,18 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 				Offset:            msg.Offset,
 				Payload:           msg.Payload,
 				TimestampUnixNano: msg.Timestamp.UnixNano(),
+				Partition:         int32(sub.Partition()),
 			}
 			if err := stream.Send(out); err != nil {
 				return err
 			}
 		}
 		latestOffset := msgs[len(msgs)-1].Offset + 1
-		s.groups.Commit(req.Topic, group, latestOffset)
+		s.groups.CommitPartition(req.Topic, group, sub.Partition(), latestOffset)
 		s.broker.AddConsumed(int64(len(msgs)))
 		if s.metrics != nil {
 			s.metrics.ConsumedTotal.Add(float64(len(msgs)))
-			head, tail, err := s.broker.TopicInfo(req.Topic)
+			head, tail, err := s.broker.TopicPartitionInfo(req.Topic, sub.Partition())
 			if err == nil {
 				lag := tail - latestOffset
 				if latestOffset < head {
