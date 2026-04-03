@@ -7,12 +7,12 @@ import (
 
 // Subscription tracks a single consumer's read position on a topic.
 type Subscription struct {
-	topic    *Topic
-	group    string
+	topic     *Topic
+	group     string
 	partition int
-	offset   atomic.Int64
-	notify   chan struct{}
-	cancelFn context.CancelFunc
+	offset    atomic.Int64
+	notify    chan struct{}
+	cancelFn  context.CancelFunc
 }
 
 func newSubscription(t *Topic, group string, partition int, startOffset int64) *Subscription {
@@ -48,5 +48,5 @@ func (s *Subscription) Commit(offset int64) {
 	s.offset.Store(offset)
 }
 
-func (s *Subscription) Offset() int64 { return s.offset.Load() }
+func (s *Subscription) Offset() int64  { return s.offset.Load() }
 func (s *Subscription) Partition() int { return s.partition }

@@ -108,9 +108,9 @@ func publishGRPC(addr, topic, key string, partition int, msg string) {
 
 	client := goqueuev1.NewBrokerServiceClient(conn)
 	resp, err := client.Publish(ctx, &goqueuev1.PublishRequest{
-		Topic:   topic,
-		Payload: []byte(msg),
-		Key:     key,
+		Topic:     topic,
+		Payload:   []byte(msg),
+		Key:       key,
 		Partition: int32(partition),
 	})
 	if err != nil {
