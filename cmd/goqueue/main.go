@@ -38,9 +38,10 @@ func main() {
 
 func usage() {
 	fmt.Println("goqueue publish --topic orders --addr localhost:9090 \"hello\"")
-	fmt.Println("goqueue publish --grpc --addr localhost:9095 --topic orders \"hello\"")
+	fmt.Println("goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 \"hello\"")
+	fmt.Println("goqueue publish --grpc --addr localhost:9095 --topic orders --partition 1 \"hello\"")
 	fmt.Println("goqueue consume --topic orders --group payment-service --addr localhost:9090")
-	fmt.Println("goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service")
+	fmt.Println("goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1")
 }
 
 func publishCmd(args []string) {
