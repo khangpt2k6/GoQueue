@@ -31,7 +31,8 @@ func New() *Broker {
 
 // Publish writes a message to the named topic, creating it if needed.
 func (b *Broker) Publish(topicName string, payload []byte) int64 {
-	_, offset, _ := b.PublishWithKey(topicName, "", payload)
+	set := b.getOrCreate(topicName)
+	offset := set.partitions[0].Publish(payload)
 	b.totalPublished.Add(1)
 	return offset
 }
@@ -86,6 +87,11 @@ func (b *Broker) Subscribe(topicName, group string) *Subscription {
 // SubscribeAt returns a Subscription starting at a specific offset.
 // If startOffset < 0, it starts from the current tail (latest).
 func (b *Broker) SubscribeAt(topicName, group string, startOffset int64) *Subscription {
+	return b.SubscribePartitionAt(topicName, group, 0, startOffset)
+}
+
+// SubscribeGroupAt selects partition by group hash and subscribes from offset.
+func (b *Broker) SubscribeGroupAt(topicName, group string, startOffset int64) *Subscription {
 	set := b.getOrCreate(topicName)
 	partition := choosePartition(set, group)
 	return b.SubscribePartitionAt(topicName, group, partition, startOffset)

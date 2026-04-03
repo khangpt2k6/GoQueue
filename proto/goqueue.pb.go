@@ -25,6 +25,8 @@ type PublishRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Topic         string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
 	Payload       []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Key           string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	Partition     int32                  `protobuf:"varint,4,opt,name=partition,proto3" json:"partition,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,9 +75,24 @@ func (x *PublishRequest) GetPayload() []byte {
 	return nil
 }
 
+func (x *PublishRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *PublishRequest) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
 type PublishResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offset        int64                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
+	Partition     int32                  `protobuf:"varint,2,opt,name=partition,proto3" json:"partition,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,10 +134,18 @@ func (x *PublishResponse) GetOffset() int64 {
 	return 0
 }
 
+func (x *PublishResponse) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
 type ConsumeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Topic         string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
 	Group         string                 `protobuf:"bytes,2,opt,name=group,proto3" json:"group,omitempty"`
+	Partition     int32                  `protobuf:"varint,3,opt,name=partition,proto3" json:"partition,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -169,11 +194,19 @@ func (x *ConsumeRequest) GetGroup() string {
 	return ""
 }
 
+func (x *ConsumeRequest) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
 type ConsumeMessage struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Offset            int64                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
 	Payload           []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	TimestampUnixNano int64                  `protobuf:"varint,3,opt,name=timestamp_unix_nano,json=timestampUnixNano,proto3" json:"timestamp_unix_nano,omitempty"`
+	Partition         int32                  `protobuf:"varint,4,opt,name=partition,proto3" json:"partition,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -229,24 +262,36 @@ func (x *ConsumeMessage) GetTimestampUnixNano() int64 {
 	return 0
 }
 
+func (x *ConsumeMessage) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
 var File_goqueue_proto protoreflect.FileDescriptor
 
 const file_goqueue_proto_rawDesc = "" +
 	"\n" +
 	"\rgoqueue.proto\x12\n" +
-	"goqueue.v1\"@\n" +
+	"goqueue.v1\"p\n" +
 	"\x0ePublishRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\fR\apayload\")\n" +
+	"\apayload\x18\x02 \x01(\fR\apayload\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\tR\x03key\x12\x1c\n" +
+	"\tpartition\x18\x04 \x01(\x05R\tpartition\"G\n" +
 	"\x0fPublishResponse\x12\x16\n" +
-	"\x06offset\x18\x01 \x01(\x03R\x06offset\"<\n" +
+	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x1c\n" +
+	"\tpartition\x18\x02 \x01(\x05R\tpartition\"Z\n" +
 	"\x0eConsumeRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x14\n" +
-	"\x05group\x18\x02 \x01(\tR\x05group\"r\n" +
+	"\x05group\x18\x02 \x01(\tR\x05group\x12\x1c\n" +
+	"\tpartition\x18\x03 \x01(\x05R\tpartition\"\x90\x01\n" +
 	"\x0eConsumeMessage\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12.\n" +
-	"\x13timestamp_unix_nano\x18\x03 \x01(\x03R\x11timestampUnixNano2\x98\x01\n" +
+	"\x13timestamp_unix_nano\x18\x03 \x01(\x03R\x11timestampUnixNano\x12\x1c\n" +
+	"\tpartition\x18\x04 \x01(\x05R\tpartition2\x98\x01\n" +
 	"\rBrokerService\x12B\n" +
 	"\aPublish\x12\x1a.goqueue.v1.PublishRequest\x1a\x1b.goqueue.v1.PublishResponse\x12C\n" +
 	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01B*Z(github.com/2006t/goqueue/proto;goqueuev1b\x06proto3"

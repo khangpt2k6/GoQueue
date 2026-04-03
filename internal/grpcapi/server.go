@@ -74,7 +74,7 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 	partition := int(req.Partition)
 	var sub *broker.Subscription
 	if partition < 0 {
-		sub = s.broker.SubscribeAt(req.Topic, group, -1)
+		sub = s.broker.SubscribeGroupAt(req.Topic, group, -1)
 		if committed, ok := s.groups.GetPartition(req.Topic, group, sub.Partition()); ok {
 			sub.Commit(committed)
 		}

@@ -40,6 +40,28 @@ func BenchmarkPublishInMemory1K(b *testing.B) {
 	}
 }
 
+func BenchmarkPublishWithKeyHashing(b *testing.B) {
+	bk := broker.New()
+	bk.EnsureTopic("bench-keyed", 12)
+	payload := make([]byte, 256)
+	b.SetBytes(256)
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _, _ = bk.PublishWithKey("bench-keyed", "user-42", payload)
+	}
+}
+
+func BenchmarkPublishRoundRobinPartitions(b *testing.B) {
+	bk := broker.New()
+	bk.EnsureTopic("bench-rr", 12)
+	payload := make([]byte, 256)
+	b.SetBytes(256)
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _, _ = bk.PublishWithKey("bench-rr", "", payload)
+	}
+}
+
 // --- Publish with WAL ---
 
 func BenchmarkPublishWithWAL(b *testing.B) {
