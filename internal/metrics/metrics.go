@@ -9,13 +9,13 @@ import (
 )
 
 type Metrics struct {
-	PublishedTotal prometheus.Counter
-	ConsumedTotal  prometheus.Counter
-	ConsumerLag    *prometheus.GaugeVec
-	PublishLatency prometheus.Histogram
-	RaftRole       *prometheus.GaugeVec
-	RaftTerm       *prometheus.GaugeVec
-	RaftLeader     *prometheus.GaugeVec
+	PublishedTotal    prometheus.Counter
+	ConsumedTotal     prometheus.Counter
+	ConsumerLag       *prometheus.GaugeVec
+	PublishLatency    prometheus.Histogram
+	RaftRole          *prometheus.GaugeVec
+	RaftTerm          *prometheus.GaugeVec
+	RaftLeader        *prometheus.GaugeVec
 	RaftLeaderChanges *prometheus.CounterVec
 }
 
