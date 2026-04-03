@@ -48,6 +48,8 @@ func publishCmd(args []string) {
 	addr := fs.String("addr", "localhost:9090", "broker tcp address")
 	topic := fs.String("topic", "", "topic name")
 	useGRPC := fs.Bool("grpc", false, "use gRPC transport")
+	key := fs.String("key", "", "partition key (gRPC only)")
+	partition := fs.Int("partition", -1, "target partition (gRPC only)")
 	_ = fs.Parse(args)
 
 	if *topic == "" || fs.NArg() < 1 {
@@ -55,7 +57,7 @@ func publishCmd(args []string) {
 	}
 	msg := fs.Arg(0)
 	if *useGRPC {
-		publishGRPC(*addr, *topic, msg)
+		publishGRPC(*addr, *topic, *key, *partition, msg)
 		return
 	}
 	publishTCP(*addr, *topic, msg)
@@ -90,7 +92,7 @@ func publishTCP(addr, topic, msg string) {
 	fmt.Printf("published topic=%s\n", topic)
 }
 
-func publishGRPC(addr, topic, msg string) {
+func publishGRPC(addr, topic, key string, partition int, msg string) {
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -107,11 +109,13 @@ func publishGRPC(addr, topic, msg string) {
 	resp, err := client.Publish(ctx, &goqueuev1.PublishRequest{
 		Topic:   topic,
 		Payload: []byte(msg),
+		Key:     key,
+		Partition: int32(partition),
 	})
 	if err != nil {
 		log.Fatalf("grpc publish failed: %v", err)
 	}
-	fmt.Printf("published topic=%s offset=%d\n", topic, resp.Offset)
+	fmt.Printf("published topic=%s partition=%d offset=%d\n", topic, resp.Partition, resp.Offset)
 }
 
 func consumeCmd(args []string) {
@@ -120,13 +124,14 @@ func consumeCmd(args []string) {
 	topic := fs.String("topic", "", "topic name")
 	group := fs.String("group", "default", "consumer group")
 	useGRPC := fs.Bool("grpc", false, "use gRPC transport")
+	partition := fs.Int("partition", -1, "partition id (gRPC only, -1 auto)")
 	_ = fs.Parse(args)
 
 	if *topic == "" {
 		log.Fatal("consume requires --topic")
 	}
 	if *useGRPC {
-		consumeGRPC(*addr, *topic, *group)
+		consumeGRPC(*addr, *topic, *group, *partition)
 		return
 	}
 	consumeTCP(*addr, *topic, *group)
@@ -174,7 +179,7 @@ func consumeTCP(addr, topic, group string) {
 	}
 }
 
-func consumeGRPC(addr, topic, group string) {
+func consumeGRPC(addr, topic, group string, partition int) {
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -196,8 +201,9 @@ func consumeGRPC(addr, topic, group string) {
 
 	client := goqueuev1.NewBrokerServiceClient(conn)
 	stream, err := client.Consume(ctx, &goqueuev1.ConsumeRequest{
-		Topic: topic,
-		Group: group,
+		Topic:     topic,
+		Group:     group,
+		Partition: int32(partition),
 	})
 	if err != nil {
 		log.Fatalf("grpc consume stream failed: %v", err)
@@ -211,6 +217,6 @@ func consumeGRPC(addr, topic, group string) {
 			}
 			log.Fatalf("grpc read message failed: %v", err)
 		}
-		fmt.Printf("[%s] %s\n", topic, string(msg.Payload))
+		fmt.Printf("[%s p=%d] %s\n", topic, msg.Partition, string(msg.Payload))
 	}
 }
